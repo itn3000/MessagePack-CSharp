@@ -36,8 +36,8 @@
     <PackageReference Include="System.Runtime.InteropServices.RuntimeInformation" Version="4.3.0" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Remove="Generator\*.cs"/>
-    <Compile Remove="Generator\*.tt"/>
+    <Compile Remove="Generator\*.cs" />
+    <Compile Remove="Generator\*.tt" />
     <None Update="Generator\UnionTemplate.tt">
       <LastGenOutput>UnionTemplate.cs</LastGenOutput>
       <Generator>TextTemplatingFileGenerator</Generator>
@@ -79,7 +79,6 @@
   <ItemGroup>
     <None Include="App.config" />
     <None Include="Nuget.config" />
-    <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="Generator\UnionTemplate.tt">
