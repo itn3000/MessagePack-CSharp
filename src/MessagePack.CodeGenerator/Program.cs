@@ -73,6 +73,7 @@ namespace MessagePack.CodeGenerator
     {
         static void Main(string[] args)
         {
+            Console.WriteLine($"ismono = {EnvironmentHelper.IsMono}");
             var msbldpath = Environment.GetEnvironmentVariable("MSBUILD_HOME");
             foreach (var dll in Directory.EnumerateFiles(msbldpath, "*.dll"))
             {
