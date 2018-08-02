@@ -53,7 +53,7 @@ namespace MessagePack.CodeGenerator
                 }
             }
 
-            // EnvironmentHelper.Setup();
+            EnvironmentHelper.Setup();
 
             var workspace = MSBuildWorkspace.Create();
             workspace.WorkspaceFailed += Workspace_WorkspaceFailed;
