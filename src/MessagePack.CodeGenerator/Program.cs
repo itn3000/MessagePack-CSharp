@@ -56,7 +56,7 @@ namespace MessagePack.CodeGenerator
                 return;
             }
 
-        SHOW_HELP:
+            SHOW_HELP:
             Console.WriteLine("mpc arguments help:");
             option.WriteOptionDescriptions(Console.Out);
             IsParsed = false;
