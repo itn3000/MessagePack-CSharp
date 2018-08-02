@@ -425,11 +425,33 @@ namespace MessagePack
                 throw new InvalidOperationException(string.Format("code is invalid. code:{0} format:{1}", bytes[offset], MessagePackCode.ToFormatName(bytes[offset])));
             }
         }
+#if NETSTANDARD
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+#endif
+        public static Nil ReadNil(ref ReadOnlySpan<byte> bytes)
+        {
+            if (bytes[0] == MessagePackCode.Nil)
+            {
+                bytes = bytes.Slice(1);
+                return Nil.Default;
+            }
+            else
+            {
+                throw new InvalidOperationException(string.Format("code is invalid. code:{0} format:{1}", bytes[0], MessagePackCode.ToFormatName(bytes[offset])));
+            }
+        }
 
 #if NETSTANDARD
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
 #endif
         public static bool IsNil(byte[] bytes, int offset)
+        {
+            return bytes[offset] == MessagePackCode.Nil;
+        }
+#if NETSTANDARD
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+#endif
+        public static bool IsNil(ReadOnlySpan<byte> bytes, int offset)
         {
             return bytes[offset] == MessagePackCode.Nil;
         }
@@ -750,6 +772,16 @@ namespace MessagePack
                 return (int)mapHeaderDecoders[bytes[offset]].Read(bytes, offset, out readSize);
             }
         }
+#if NETSTANDARD
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+#endif
+        public static int ReadMapHeader(ref ReadOnlySpan<byte> bytes)
+        {
+            checked
+            {
+                return (int)mapHeaderDecoders[bytes[0]].Read(ref bytes);
+            }
+        }
 
         /// <summary>
         /// Return map count.
@@ -760,6 +792,13 @@ namespace MessagePack
         public static uint ReadMapHeaderRaw(byte[] bytes, int offset, out int readSize)
         {
             return mapHeaderDecoders[bytes[offset]].Read(bytes, offset, out readSize);
+        }
+#if NETSTANDARD
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+#endif
+        public static uint ReadMapHeaderRaw(ref ReadOnlySpan<byte> bytes)
+        {
+            return mapHeaderDecoders[bytes[0]].Read(ref bytes);
         }
 
 #if NETSTANDARD
