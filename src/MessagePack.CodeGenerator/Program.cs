@@ -73,42 +73,6 @@ namespace MessagePack.CodeGenerator
     {
         static void Main(string[] args)
         {
-            Console.WriteLine($"ismono = {EnvironmentHelper.IsMono}");
-            // var msbldpath = Environment.GetEnvironmentVariable("MSBUILD_HOME");
-            // foreach (var dll in Directory.EnumerateFiles(msbldpath, "*.dll"))
-            // {
-            //     if (File.Exists(dll) && (
-            //         Path.GetFileName(dll).StartsWith("Microsoft.Build") 
-            //         || 
-            //         Path.GetFileName(dll).StartsWith("NuGet")))
-            //     {
-            //         Console.WriteLine($"loading {dll}");
-            //         System.Reflection.Assembly.LoadFrom(dll);
-            //     }
-            // }
-            // if (File.Exists(Path.Combine(msbldpath, "MSBuild.dll")))
-            // {
-            //     Environment.SetEnvironmentVariable("MSBUILD_EXE_PATH", Path.Combine(msbldpath, "MSBuild.dll"));
-            // }
-            // else
-            // {
-            //     Environment.SetEnvironmentVariable("MSBUILD_EXE_PATH", Path.Combine(msbldpath, "MSBuild.exe"));
-            // }
-            // AppDomain.CurrentDomain.AssemblyResolve += (x, y) =>
-            // {
-            //     Console.WriteLine($"asmresolve:{x},{x.GetType()},{y.Name},{y.RequestingAssembly}");
-            //     var asmname = new System.Reflection.AssemblyName(y.Name);
-            //     if(File.Exists(Path.Combine(msbldpath, asmname.Name + ".dll")))
-            //     {
-            //         return System.Reflection.Assembly.LoadFrom(Path.Combine(msbldpath, asmname.Name + ".dll"));
-            //     }
-            //     return null;
-            // };
-            // var vsinstance = Microsoft.Build.Locator.MSBuildLocator.QueryVisualStudioInstances()
-            //     .OrderByDescending(x => x.Version)
-            //     .FirstOrDefault();
-            // Console.WriteLine($"{vsinstance.Name},{vsinstance.DiscoveryType},{vsinstance.MSBuildPath}");
-            // Microsoft.Build.Locator.MSBuildLocator.RegisterInstance(vsinstance);
             var cmdArgs = new CommandlineArguments(args);
             if (!cmdArgs.IsParsed)
             {
