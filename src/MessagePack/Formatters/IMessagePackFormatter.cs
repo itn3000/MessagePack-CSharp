@@ -12,6 +12,6 @@ namespace MessagePack.Formatters
     {
         int Serialize(ref byte[] bytes, int offset, T value, IFormatterResolver formatterResolver);
         T Deserialize(byte[] bytes, int offset, IFormatterResolver formatterResolver, out int readSize);
-        T Deserialize(ref Span<byte> span, IFormatterResolver formatterResolver);
+        //T Deserialize(ref Span<byte> span, IFormatterResolver formatterResolver);
     }
 }

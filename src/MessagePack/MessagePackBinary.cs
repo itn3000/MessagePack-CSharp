@@ -428,16 +428,16 @@ namespace MessagePack
 #if NETSTANDARD
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
 #endif
-        public static Nil ReadNil(ref ReadOnlySpan<byte> bytes)
+        public static Nil ReadNil(ReadOnlySpan<byte> bytes, out int readSize)
         {
             if (bytes[0] == MessagePackCode.Nil)
             {
-                bytes = bytes.Slice(1);
+                readSize = 1;
                 return Nil.Default;
             }
             else
             {
-                throw new InvalidOperationException(string.Format("code is invalid. code:{0} format:{1}", bytes[0], MessagePackCode.ToFormatName(bytes[offset])));
+                throw new InvalidOperationException(string.Format("code is invalid. code:{0} format:{1}", bytes[0], MessagePackCode.ToFormatName(bytes[0])));
             }
         }
 
@@ -451,9 +451,9 @@ namespace MessagePack
 #if NETSTANDARD
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
 #endif
-        public static bool IsNil(ReadOnlySpan<byte> bytes, int offset)
+        public static bool IsNil(ref ReadOnlySpan<byte> bytes)
         {
-            return bytes[offset] == MessagePackCode.Nil;
+            return bytes[0] == MessagePackCode.Nil;
         }
 
         public static int WriteRaw(ref byte[] bytes, int offset, byte[] rawMessagePackBlock)
@@ -775,11 +775,11 @@ namespace MessagePack
 #if NETSTANDARD
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
 #endif
-        public static int ReadMapHeader(ref ReadOnlySpan<byte> bytes)
+        public static int ReadMapHeader(ReadOnlySpan<byte> bytes)
         {
             checked
             {
-                return (int)mapHeaderDecoders[bytes[0]].Read(ref bytes);
+                return (int)mapHeaderDecoders[bytes[0]].Read(bytes);
             }
         }
 
@@ -796,9 +796,9 @@ namespace MessagePack
 #if NETSTANDARD
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
 #endif
-        public static uint ReadMapHeaderRaw(ref ReadOnlySpan<byte> bytes)
+        public static uint ReadMapHeaderRaw(ReadOnlySpan<byte> bytes, out int readSize)
         {
-            return mapHeaderDecoders[bytes[0]].Read(ref bytes);
+            return mapHeaderDecoders[bytes[0]].Read(bytes, out readSize);
         }
 
 #if NETSTANDARD
@@ -922,6 +922,18 @@ namespace MessagePack
             }
         }
 
+#if NETSTANDARD
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+#endif
+        public static int ReadArrayHeader(ref ReadOnlySpan<byte> bytes)
+        {
+            checked
+            {
+                var ret = bytes[0];
+                return (int)arrayHeaderDecoders[bytes[0]].Read(ref bytes);
+            }
+        }
+
         /// <summary>
         /// Return array count.
         /// </summary>
@@ -931,6 +943,14 @@ namespace MessagePack
         public static uint ReadArrayHeaderRaw(byte[] bytes, int offset, out int readSize)
         {
             return arrayHeaderDecoders[bytes[offset]].Read(bytes, offset, out readSize);
+        }
+
+#if NETSTANDARD
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+#endif
+        public static uint ReadArrayHeaderRaw(ref ReadOnlySpan<byte> bytes)
+        {
+            return arrayHeaderDecoders[bytes[0]].Read(ref bytes);
         }
 
 #if NETSTANDARD
@@ -951,6 +971,15 @@ namespace MessagePack
         {
             readSize = 1;
             return booleanDecoders[bytes[offset]].Read();
+        }
+#if NETSTANDARD
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+#endif
+        public static bool ReadBoolean(ref ReadOnlySpan<byte> bytes)
+        {
+            var ret = booleanDecoders[bytes[0]].Read();
+            bytes = bytes.Slice(1);
+            return ret;
         }
 
 #if NETSTANDARD
@@ -3438,6 +3467,7 @@ namespace MessagePack.Decoders
     internal interface IMapHeaderDecoder
     {
         uint Read(byte[] bytes, int offset, out int readSize);
+        uint Read(ReadOnlySpan<byte> bytes, out int readSize);
     }
 
     internal sealed class FixMapHeader : IMapHeaderDecoder
@@ -3453,6 +3483,12 @@ namespace MessagePack.Decoders
         {
             readSize = 1;
             return (uint)(bytes[offset] & 0xF);
+        }
+
+        public uint Read(ReadOnlySpan<byte> bytes, out int readSize)
+        {
+            readSize = 1;
+            return bytes[0];
         }
     }
 
@@ -3471,6 +3507,15 @@ namespace MessagePack.Decoders
             unchecked
             {
                 return (uint)((bytes[offset + 1] << 8) | (bytes[offset + 2]));
+            }
+        }
+
+        public uint Read(ReadOnlySpan<byte> bytes, out int readSize)
+        {
+            readSize = 3;
+            unchecked
+            {
+                return (uint)((bytes[1] << 8) | (bytes[2]));
             }
         }
     }
@@ -3492,6 +3537,14 @@ namespace MessagePack.Decoders
                 return (uint)((bytes[offset + 1] << 24) | (bytes[offset + 2] << 16) | (bytes[offset + 3] << 8) | bytes[offset + 4]);
             }
         }
+        public uint Read(ReadOnlySpan<byte> bytes, out int readSize)
+        {
+            readSize = 5;
+            unchecked
+            {
+                return (uint)((bytes[1] << 24) | (bytes[2] << 16) | (bytes[3] << 8) | bytes[4]);
+            }
+        }
     }
 
     internal sealed class InvalidMapHeader : IMapHeaderDecoder
@@ -3507,11 +3560,16 @@ namespace MessagePack.Decoders
         {
             throw new InvalidOperationException(string.Format("code is invalid. code:{0} format:{1}", bytes[offset], MessagePackCode.ToFormatName(bytes[offset])));
         }
+        public uint Read(ReadOnlySpan<byte> bytes, out int readSize)
+        {
+            throw new InvalidOperationException(string.Format("code is invalid. code:{0} format:{1}", bytes[0], MessagePackCode.ToFormatName(bytes[0])));
+        }
     }
 
     internal interface IArrayHeaderDecoder
     {
         uint Read(byte[] bytes, int offset, out int readSize);
+        uint Read(ReadOnlySpan<byte> bytes, out int readSize);
     }
 
     internal sealed class FixArrayHeader : IArrayHeaderDecoder
@@ -3527,6 +3585,12 @@ namespace MessagePack.Decoders
         {
             readSize = 1;
             return (uint)(bytes[offset] & 0xF);
+        }
+
+        public uint Read(ReadOnlySpan<byte> bytes, out int readSize)
+        {
+            readSize = 1;
+            return (uint)(bytes[0] & 0xF);
         }
     }
 
@@ -3545,6 +3609,14 @@ namespace MessagePack.Decoders
             unchecked
             {
                 return (uint)((bytes[offset + 1] << 8) | (bytes[offset + 2]));
+            }
+        }
+        public uint Read(ReadOnlySpan<byte> bytes, out int readSize)
+        {
+            readSize = 3;
+            unchecked
+            {
+                return (uint)((bytes[1] << 8) | (bytes[2]));
             }
         }
     }
@@ -3566,6 +3638,15 @@ namespace MessagePack.Decoders
                 return (uint)((bytes[offset + 1] << 24) | (bytes[offset + 2] << 16) | (bytes[offset + 3] << 8) | bytes[offset + 4]);
             }
         }
+
+        public uint Read(ReadOnlySpan<byte> bytes, out int readSize)
+        {
+            readSize = 5;
+            unchecked
+            {
+                return (uint)((bytes[1] << 24) | (bytes[2] << 16) | (bytes[3] << 8) | bytes[4]);
+            }
+        }
     }
 
     internal sealed class InvalidArrayHeader : IArrayHeaderDecoder
@@ -3580,6 +3661,11 @@ namespace MessagePack.Decoders
         public uint Read(byte[] bytes, int offset, out int readSize)
         {
             throw new InvalidOperationException(string.Format("code is invalid. code:{0} format:{1}", bytes[offset], MessagePackCode.ToFormatName(bytes[offset])));
+        }
+
+        public uint Read(ReadOnlySpan<byte> bytes, out int readSize)
+        {
+            throw new InvalidOperationException(string.Format("code is invalid. code:{0} format:{1}", bytes[0], MessagePackCode.ToFormatName(bytes[0])));
         }
     }
 
@@ -3627,6 +3713,7 @@ namespace MessagePack.Decoders
     internal interface IByteDecoder
     {
         byte Read(byte[] bytes, int offset, out int readSize);
+        byte Read(ReadOnlySpan<byte> bytes, out int readSize);
     }
 
     internal sealed class FixByte : IByteDecoder
@@ -3642,6 +3729,12 @@ namespace MessagePack.Decoders
         {
             readSize = 1;
             return bytes[offset];
+        }
+
+        public byte Read(ReadOnlySpan<byte> bytes, out int readSize)
+        {
+            readSize = 1;
+            return bytes[0];
         }
     }
 
@@ -3659,6 +3752,12 @@ namespace MessagePack.Decoders
             readSize = 2;
             return bytes[offset + 1];
         }
+
+        public byte Read(ReadOnlySpan<byte> bytes, out int readSize)
+        {
+            readSize = 2;
+            return bytes[1];
+        }
     }
 
     internal sealed class InvalidByte : IByteDecoder
@@ -3674,11 +3773,17 @@ namespace MessagePack.Decoders
         {
             throw new InvalidOperationException(string.Format("code is invalid. code:{0} format:{1}", bytes[offset], MessagePackCode.ToFormatName(bytes[offset])));
         }
+
+        public byte Read(ReadOnlySpan<byte> bytes, out int readSize)
+        {
+            throw new InvalidOperationException(string.Format("code is invalid. code:{0} format:{1}", bytes[0], MessagePackCode.ToFormatName(bytes[0])));
+        }
     }
 
     internal interface IBytesDecoder
     {
         byte[] Read(byte[] bytes, int offset, out int readSize);
+        byte[] Read(ReadOnlySpan<byte> bytes, out int readSize);
     }
 
     internal sealed class NilBytes : IBytesDecoder
@@ -3691,6 +3796,12 @@ namespace MessagePack.Decoders
         }
 
         public byte[] Read(byte[] bytes, int offset, out int readSize)
+        {
+            readSize = 1;
+            return null;
+        }
+
+        public byte[] Read(ReadOnlySpan<byte> bytes, out int readSize)
         {
             readSize = 1;
             return null;
@@ -3715,6 +3826,15 @@ namespace MessagePack.Decoders
             readSize = length + 2;
             return newBytes;
         }
+
+        public byte[] Read(ReadOnlySpan<byte> bytes, out int readSize)
+        {
+            var length = bytes[1];
+            var newBytes = new byte[length];
+            bytes.Slice(1, length).CopyTo(newBytes.AsSpan());
+            readSize = length + 2;
+            return newBytes;
+        }
     }
 
     internal sealed class Bin16Bytes : IBytesDecoder
@@ -3732,6 +3852,15 @@ namespace MessagePack.Decoders
             var newBytes = new byte[length];
             Buffer.BlockCopy(bytes, offset + 3, newBytes, 0, length);
 
+            readSize = length + 3;
+            return newBytes;
+        }
+
+        public byte[] Read(ReadOnlySpan<byte> bytes, out int readSize)
+        {
+            var length = (bytes[1] << 8) + (bytes[2]);
+            var newBytes = new byte[length];
+            bytes.Slice(3, length).CopyTo(newBytes);
             readSize = length + 3;
             return newBytes;
         }
@@ -3755,6 +3884,15 @@ namespace MessagePack.Decoders
             readSize = length + 5;
             return newBytes;
         }
+
+        public byte[] Read(ReadOnlySpan<byte> bytes, out int readSize)
+        {
+            var length = (bytes[1] << 24) | (bytes[2] << 16) | (bytes[3] << 8) | (bytes[4]);
+            var newBytes = new byte[length];
+            bytes.Slice(5, length).CopyTo(newBytes);
+            readSize = length + 5;
+            return newBytes;
+        }
     }
 
     internal sealed class InvalidBytes : IBytesDecoder
@@ -3769,6 +3907,11 @@ namespace MessagePack.Decoders
         public byte[] Read(byte[] bytes, int offset, out int readSize)
         {
             throw new InvalidOperationException(string.Format("code is invalid. code:{0} format:{1}", bytes[offset], MessagePackCode.ToFormatName(bytes[offset])));
+        }
+
+        public byte[] Read(ReadOnlySpan<byte> bytes, out int readSize)
+        {
+            throw new InvalidOperationException(string.Format("code is invalid. code:{0} format:{1}", bytes[0], MessagePackCode.ToFormatName(bytes[0])));
         }
     }
 
@@ -3864,6 +4007,7 @@ namespace MessagePack.Decoders
     internal interface ISByteDecoder
     {
         sbyte Read(byte[] bytes, int offset, out int readSize);
+        sbyte Read(ReadOnlySpan<byte> bytes, out int readSize);
     }
 
     internal sealed class FixSByte : ISByteDecoder
@@ -3879,6 +4023,12 @@ namespace MessagePack.Decoders
         {
             readSize = 1;
             return unchecked((sbyte)bytes[offset]);
+        }
+
+        public sbyte Read(ReadOnlySpan<byte> bytes, out int readSize)
+        {
+            readSize = 1;
+            return unchecked((sbyte)bytes[0]);
         }
     }
 
@@ -3896,6 +4046,12 @@ namespace MessagePack.Decoders
             readSize = 2;
             return unchecked((sbyte)(bytes[offset + 1]));
         }
+
+        public sbyte Read(ReadOnlySpan<byte> bytes, out int readSize)
+        {
+            readSize = 2;
+            return unchecked((sbyte)(bytes[1]));
+        }
     }
 
     internal sealed class InvalidSByte : ISByteDecoder
@@ -3911,11 +4067,17 @@ namespace MessagePack.Decoders
         {
             throw new InvalidOperationException(string.Format("code is invalid. code:{0} format:{1}", bytes[offset], MessagePackCode.ToFormatName(bytes[offset])));
         }
+
+        public sbyte Read(ReadOnlySpan<byte> bytes, out int readSize)
+        {
+            throw new InvalidOperationException(string.Format("code is invalid. code:{0} format:{1}", bytes[0], MessagePackCode.ToFormatName(bytes[0])));
+        }
     }
 
     internal interface ISingleDecoder
     {
         float Read(byte[] bytes, int offset, out int readSize);
+        float Read(ReadOnlySpan<byte> bytes, out int readSize);
     }
 
     internal sealed class FixNegativeFloat : ISingleDecoder
@@ -3930,6 +4092,11 @@ namespace MessagePack.Decoders
         public Single Read(byte[] bytes, int offset, out int readSize)
         {
             return FixSByte.Instance.Read(bytes, offset, out readSize);
+        }
+
+        public float Read(ReadOnlySpan<byte> bytes, out int readSize)
+        {
+            return FixSByte.Instance.Read(bytes, out readSize);
         }
     }
 
@@ -3946,6 +4113,11 @@ namespace MessagePack.Decoders
         {
             return FixByte.Instance.Read(bytes, offset, out readSize);
         }
+
+        public float Read(ReadOnlySpan<byte> bytes, out int readSize)
+        {
+            return FixByte.Instance.Read(bytes, out readSize);
+        }
     }
 
     internal sealed class Int8Single : ISingleDecoder
@@ -3960,6 +4132,11 @@ namespace MessagePack.Decoders
         public Single Read(byte[] bytes, int offset, out int readSize)
         {
             return Int8SByte.Instance.Read(bytes, offset, out readSize);
+        }
+
+        public float Read(ReadOnlySpan<byte> bytes, out int readSize)
+        {
+            return Int8SByte.Instance.Read(bytes, out readSize);
         }
     }
 
@@ -3976,6 +4153,11 @@ namespace MessagePack.Decoders
         {
             return Int16Int16.Instance.Read(bytes, offset, out readSize);
         }
+
+        public float Read(ReadOnlySpan<byte> bytes, out int readSize)
+        {
+            return Int16Int16.Instance.Read(bytes, out readSize);
+        }
     }
 
     internal sealed class Int32Single : ISingleDecoder
@@ -3991,6 +4173,11 @@ namespace MessagePack.Decoders
         {
             return Int32Int32.Instance.Read(bytes, offset, out readSize);
         }
+
+        public float Read(ReadOnlySpan<byte> bytes, out int readSize)
+        {
+            return Int32Int32.Instance.Read(bytes, out readSize);
+        }
     }
 
     internal sealed class Int64Single : ISingleDecoder
@@ -4005,6 +4192,11 @@ namespace MessagePack.Decoders
         public Single Read(byte[] bytes, int offset, out int readSize)
         {
             return Int64Int64.Instance.Read(bytes, offset, out readSize);
+        }
+
+        public float Read(ReadOnlySpan<byte> bytes, out int readSize)
+        {
+            return Int64Int64.Instance.Read(bytes, out readSize);
         }
     }
 
@@ -4022,6 +4214,11 @@ namespace MessagePack.Decoders
         {
             return UInt8Byte.Instance.Read(bytes, offset, out readSize);
         }
+
+        public float Read(ReadOnlySpan<byte> bytes, out int readSize)
+        {
+            return UInt8Byte.Instance.Read(bytes, out readSize);
+        }
     }
 
     internal sealed class UInt16Single : ISingleDecoder
@@ -4036,6 +4233,11 @@ namespace MessagePack.Decoders
         public Single Read(byte[] bytes, int offset, out int readSize)
         {
             return UInt16UInt16.Instance.Read(bytes, offset, out readSize);
+        }
+
+        public float Read(ReadOnlySpan<byte> bytes, out int readSize)
+        {
+            return UInt16UInt16.Instance.Read(bytes, out readSize);
         }
     }
 
@@ -4052,6 +4254,11 @@ namespace MessagePack.Decoders
         {
             return UInt32UInt32.Instance.Read(bytes, offset, out readSize);
         }
+
+        public float Read(ReadOnlySpan<byte> bytes, out int readSize)
+        {
+            return UInt32UInt32.Instance.Read(bytes, out readSize);
+        }
     }
 
     internal sealed class UInt64Single : ISingleDecoder
@@ -4066,6 +4273,11 @@ namespace MessagePack.Decoders
         public Single Read(byte[] bytes, int offset, out int readSize)
         {
             return UInt64UInt64.Instance.Read(bytes, offset, out readSize);
+        }
+
+        public float Read(ReadOnlySpan<byte> bytes, out int readSize)
+        {
+            return UInt64UInt64.Instance.Read(bytes, out readSize);
         }
     }
 
@@ -4083,6 +4295,12 @@ namespace MessagePack.Decoders
             readSize = 5;
             return new Float32Bits(bytes, offset + 1).Value;
         }
+
+        public float Read(ReadOnlySpan<byte> bytes, out int readSize)
+        {
+            readSize = 5;
+            return new Float32Bits(bytes.Slice(1)).Value;
+        }
     }
 
     internal sealed class InvalidSingle : ISingleDecoder
@@ -4098,11 +4316,17 @@ namespace MessagePack.Decoders
         {
             throw new InvalidOperationException(string.Format("code is invalid. code:{0} format:{1}", bytes[offset], MessagePackCode.ToFormatName(bytes[offset])));
         }
+
+        public float Read(ReadOnlySpan<byte> bytes, out int readSize)
+        {
+            throw new InvalidOperationException(string.Format("code is invalid. code:{0} format:{1}", bytes[0], MessagePackCode.ToFormatName(bytes[0])));
+        }
     }
 
     internal interface IDoubleDecoder
     {
         double Read(byte[] bytes, int offset, out int readSize);
+        double Read(ReadOnlySpan<byte> bytes, out int readSize);
     }
 
     internal sealed class FixNegativeDouble : IDoubleDecoder
@@ -4117,6 +4341,11 @@ namespace MessagePack.Decoders
         public Double Read(byte[] bytes, int offset, out int readSize)
         {
             return FixSByte.Instance.Read(bytes, offset, out readSize);
+        }
+
+        public double Read(ReadOnlySpan<byte> bytes, out int readSize)
+        {
+            return FixSByte.Instance.Read(bytes, out readSize);
         }
     }
 
@@ -4133,6 +4362,11 @@ namespace MessagePack.Decoders
         {
             return FixByte.Instance.Read(bytes, offset, out readSize);
         }
+
+        public double Read(ReadOnlySpan<byte> bytes, out int readSize)
+        {
+            return FixByte.Instance.Read(bytes, out readSize);
+        }
     }
 
     internal sealed class Int8Double : IDoubleDecoder
@@ -4147,6 +4381,11 @@ namespace MessagePack.Decoders
         public Double Read(byte[] bytes, int offset, out int readSize)
         {
             return Int8SByte.Instance.Read(bytes, offset, out readSize);
+        }
+
+        public double Read(ReadOnlySpan<byte> bytes, out int readSize)
+        {
+            return Int8SByte.Instance.Read(bytes, out readSize);
         }
     }
 
@@ -4163,6 +4402,11 @@ namespace MessagePack.Decoders
         {
             return Int16Int16.Instance.Read(bytes, offset, out readSize);
         }
+
+        public double Read(ReadOnlySpan<byte> bytes, out int readSize)
+        {
+            return Int16Int16.Instance.Read(bytes, out readSize);
+        }
     }
 
     internal sealed class Int32Double : IDoubleDecoder
@@ -4178,6 +4422,11 @@ namespace MessagePack.Decoders
         {
             return Int32Int32.Instance.Read(bytes, offset, out readSize);
         }
+
+        public double Read(ReadOnlySpan<byte> bytes, out int readSize)
+        {
+            return Int32Int32.Instance.Read(bytes, out readSize);
+        }
     }
 
     internal sealed class Int64Double : IDoubleDecoder
@@ -4192,6 +4441,11 @@ namespace MessagePack.Decoders
         public Double Read(byte[] bytes, int offset, out int readSize)
         {
             return Int64Int64.Instance.Read(bytes, offset, out readSize);
+        }
+
+        public double Read(ReadOnlySpan<byte> bytes, out int readSize)
+        {
+            return Int64Int64.Instance.Read(bytes, out readSize);
         }
     }
 
@@ -4209,6 +4463,11 @@ namespace MessagePack.Decoders
         {
             return UInt8Byte.Instance.Read(bytes, offset, out readSize);
         }
+
+        public double Read(ReadOnlySpan<byte> bytes, out int readSize)
+        {
+            return UInt8Byte.Instance.Read(bytes, out readSize);
+        }
     }
 
     internal sealed class UInt16Double : IDoubleDecoder
@@ -4223,6 +4482,11 @@ namespace MessagePack.Decoders
         public Double Read(byte[] bytes, int offset, out int readSize)
         {
             return UInt16UInt16.Instance.Read(bytes, offset, out readSize);
+        }
+
+        public double Read(ReadOnlySpan<byte> bytes, out int readSize)
+        {
+            return UInt16UInt16.Instance.Read(bytes, out readSize);
         }
     }
 
@@ -4239,6 +4503,11 @@ namespace MessagePack.Decoders
         {
             return UInt32UInt32.Instance.Read(bytes, offset, out readSize);
         }
+
+        public double Read(ReadOnlySpan<byte> bytes, out int readSize)
+        {
+            return UInt32UInt32.Instance.Read(bytes, out readSize);
+        }
     }
 
     internal sealed class UInt64Double : IDoubleDecoder
@@ -4253,6 +4522,11 @@ namespace MessagePack.Decoders
         public Double Read(byte[] bytes, int offset, out int readSize)
         {
             return UInt64UInt64.Instance.Read(bytes, offset, out readSize);
+        }
+
+        public double Read(ReadOnlySpan<byte> bytes, out int readSize)
+        {
+            return UInt64UInt64.Instance.Read(bytes, out readSize);
         }
     }
 
@@ -4270,6 +4544,12 @@ namespace MessagePack.Decoders
             readSize = 5;
             return new Float32Bits(bytes, offset + 1).Value;
         }
+
+        public double Read(ReadOnlySpan<byte> bytes, out int readSize)
+        {
+            readSize = 5;
+            return new Float32Bits(bytes.Slice(1)).Value;
+        }
     }
 
     internal sealed class Float64Double : IDoubleDecoder
@@ -4286,6 +4566,12 @@ namespace MessagePack.Decoders
             readSize = 9;
             return new Float64Bits(bytes, offset + 1).Value;
         }
+
+        public double Read(ReadOnlySpan<byte> bytes, out int readSize)
+        {
+            readSize = 9;
+            return new Float64Bits(bytes.Slice(1)).Value;
+        }
     }
 
     internal sealed class InvalidDouble : IDoubleDecoder
@@ -4300,6 +4586,11 @@ namespace MessagePack.Decoders
         public Double Read(byte[] bytes, int offset, out int readSize)
         {
             throw new InvalidOperationException(string.Format("code is invalid. code:{0} format:{1}", bytes[offset], MessagePackCode.ToFormatName(bytes[offset])));
+        }
+
+        public double Read(ReadOnlySpan<byte> bytes, out int readSize)
+        {
+            throw new InvalidOperationException(string.Format("code is invalid. code:{0} format:{1}", bytes[0], MessagePackCode.ToFormatName(bytes[0])));
         }
     }
 

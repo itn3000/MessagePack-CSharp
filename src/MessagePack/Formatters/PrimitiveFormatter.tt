@@ -44,6 +44,10 @@ namespace MessagePack.Formatters
         {
             return MessagePackBinary.Read<#= t.Name #>(bytes, offset, out readSize);
         }
+        public <#= t.Name #> Deserialize(ref ReadOnlySpan<byte> bytes, int offset, IFormatterResolver formatterResolver)
+        {
+            return MessagePackBinary.Read<#= t.Name #>(ref bytes, offset);
+        }
     }
 
     public sealed class Nullable<#= t.Name #>Formatter : IMessagePackFormatter<<#= t.Name #>?>
@@ -76,6 +80,19 @@ namespace MessagePack.Formatters
             else
             {
                 return MessagePackBinary.Read<#= t.Name #>(bytes, offset, out readSize);
+            }
+        }
+
+        public <#= t.Name #>? Deserialize(ref ReadOnlySpan<byte> bytes, int offset, IFormatterResolver formatterResolver)
+        {
+            if (MessagePackBinary.IsNil(bytes, offset))
+            {
+                readSize = 1;
+                return null;
+            }
+            else
+            {
+                return MessagePackBinary.Read<#= t.Name #>(ref bytes, offset);
             }
         }
     }
@@ -126,6 +143,29 @@ namespace MessagePack.Formatters
                 for (int i = 0; i < array.Length; i++)
                 {
                     array[i] = MessagePackBinary.Read<#= t.Name #>(bytes, offset, out readSize);
+                    offset += readSize;
+                }
+                readSize = offset - startOffset;
+                return array;
+            }
+        }
+        public <#= t.Name #>[] Deserialize(ref Span<byte> bytes, int offset, IFormatterResolver formatterResolver)
+        {
+            if (MessagePackBinary.IsNil(bytes, offset))
+            {
+                readSize = 1;
+                return null;
+            }
+            else
+            {
+                var startOffset = offset;
+
+                var len = MessagePackBinary.ReadArrayHeader(ref bytes, offset);
+                offset += readSize;
+                var array = new <#= t.Name #>[len];
+                for (int i = 0; i < array.Length; i++)
+                {
+                    array[i] = MessagePackBinary.Read<#= t.Name #>(ref bytes, offset);
                     offset += readSize;
                 }
                 readSize = offset - startOffset;
