@@ -21,6 +21,8 @@ namespace MessagePack.CodeGenerator
         {
             string fname = "dotnet";
             const string tasks = "ResolveAssemblyReferencesDesignTime;ResolveProjectReferencesDesignTime;ResolveComReferencesDesignTime;Compile";
+            // from Buildalyzer implementation
+            // https://github.com/daveaglick/Buildalyzer/blob/b42d2e3ba1b3673a8133fb41e72b507b01bce1d6/src/Buildalyzer/Environment/BuildEnvironment.cs#L86-L96
             Dictionary<string, string> properties = new Dictionary<string, string>()
                 {
                     {"IntermediateOutputPath", tempPath},
@@ -41,6 +43,7 @@ namespace MessagePack.CodeGenerator
                     {"SolutionDir", new FileInfo(csprojPath).FullName}
                 };
             var propargs = string.Join(" ", properties.Select(kv => $"/p:{kv.Key}=\"{kv.Value}\""));
+            // how to determine whether command should be executed('dotnet msbuild' or 'msbuild')?
             if (Environment.OSVersion.Platform != PlatformID.Win32NT)
             {
                 fname = "msbuild";
@@ -57,6 +60,7 @@ namespace MessagePack.CodeGenerator
             var tempPath = Path.Combine(new FileInfo(csprojPath).Directory.FullName, "__buildtemp");
             try
             {
+                // executing build command with output binary log
                 var (fname, args) = GetBuildCommandLine(csprojPath, tempPath);
                 Console.WriteLine($"begin execute: {fname}, {args}");
                 using (var stdout = Console.OpenStandardOutput())
@@ -64,6 +68,7 @@ namespace MessagePack.CodeGenerator
                 {
                     await ProcessUtil.ExecuteProcessAsync(fname, args, stdout, stderr, null).ConfigureAwait(false);
                 }
+                // get results of analysis from binarylog
                 return analyzerManager.Analyze(Path.Combine(tempPath, "build.binlog")).ToArray();
             }
             finally
@@ -101,6 +106,7 @@ namespace MessagePack.CodeGenerator
             Console.WriteLine(e);
         }
 
+        // WIP function for getting Roslyn's workspace from csproj
         public static async Task<AdhocWorkspace> GetWorkspaceWithPreventBuildEvent2(this AnalyzerManager manager)
         {
             var projPath = manager.Projects.First().Value.ProjectFile.Path;
