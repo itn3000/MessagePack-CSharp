@@ -17,6 +17,62 @@ namespace MessagePack.CodeGenerator
     // Utility and Extension methods for Roslyn
     internal static class RoslynExtensions
     {
+        static (string fname, string args) GetBuildCommandLine(string csprojPath, string tempPath)
+        {
+            string fname = "dotnet";
+            const string tasks = "Restore;ResolveAssemblyReferencesDesignTime;ResolveProjectReferencesDesignTime;ResolveComReferencesDesignTime;Compile";
+            Dictionary<string, string> properties = new Dictionary<string, string>()
+                {
+                    {"IntermediateOutputPath", tempPath},
+                    {"ProviderCommandLineArgs", "true"},
+                    {"GenerateResourceMSBuildArchitecture", "CurrentArchitecture"},
+                    {"DesignTimeBuild", "true"},
+                    {"BuildProjectReferences","false"},
+                    {"SkipCompilerExecution","true"},
+                    {"DisableRarCache", "true"},
+                    {"AutoGenerateBindingRedirects", "false"},
+                    {"CopyBuildOutputToOutputDirectory", "false"},
+                    {"CopyOutputSymbolsToOutputDirectory", "false"},
+                    {"SkipCopyBuildProduct", "true"},
+                    {"AddModules", "false"},
+                    {"UseCommonOutputDirectory", "true"},
+                    {"GeneratePackageOnBuild", "false"},
+                    {"RunPostBuildEvent", "false"},
+                    {"SolutionDir", new FileInfo(csprojPath).FullName}
+                };
+            var propargs = string.Join(" ", properties.Select(kv => $"/p:{kv.Key}=\"{kv.Value}\""));
+            if (Environment.OSVersion.Platform != PlatformID.Win32NT)
+            {
+                fname = "msbuild";
+                return (fname, $"\"${csprojPath}\" /t:${tasks} ${propargs} /bl:\"{Path.Combine(tempPath, "build.binlog")}\"");
+            }
+            else
+            {
+                fname = "dotnet";
+                return (fname, $"msbuild \"{csprojPath}\" /t:{tasks} {propargs} /bl:\"{Path.Combine(tempPath, "build.binlog")}\"");
+            }
+        }
+        static async Task<AnalyzerResult[]> GetAnalyzerResults(AnalyzerManager analyzerManager, string csprojPath, params string[] preprocessorSymbols)
+        {
+            var tempPath = Path.Combine(new FileInfo(csprojPath).Directory.FullName, "__buildtemp");
+            try
+            {
+                var (fname, args) = GetBuildCommandLine(csprojPath, tempPath);
+                using (var stdout = Console.OpenStandardOutput())
+                using (var stderr = Console.OpenStandardError())
+                {
+                    await ProcessUtil.ExecuteProcessAsync(fname, args, stdout, stderr, null).ConfigureAwait(false);
+                }
+                return analyzerManager.Analyze(Path.Combine(tempPath, "build.binlog")).ToArray();
+            }
+            finally
+            {
+                if (Directory.Exists(tempPath))
+                {
+                    Directory.Delete(tempPath, true);
+                }
+            }
+        }
         public static async Task<Compilation> GetCompilationFromProject(string csprojPath, params string[] preprocessorSymbols)
         {
             var analyzerOptions = new AnalyzerManagerOptions();
@@ -26,7 +82,8 @@ namespace MessagePack.CodeGenerator
             var projectAnalyzer = manager.GetProject(csprojPath); // addproj
             // projectAnalyzer.AddBuildLogger(new Microsoft.Build.Logging.ConsoleLogger(Microsoft.Build.Framework.LoggerVerbosity.Minimal));
 
-            var workspace = manager.GetWorkspaceWithPreventBuildEvent();
+            // var workspace = manager.GetWorkspaceWithPreventBuildEvent();
+            var workspace = await manager.GetWorkspaceWithPreventBuildEvent2().ConfigureAwait(false);
 
             workspace.WorkspaceFailed += WorkSpaceFailed;
             var project = workspace.CurrentSolution.Projects.First();
@@ -41,6 +98,20 @@ namespace MessagePack.CodeGenerator
         private static void WorkSpaceFailed(object sender, WorkspaceDiagnosticEventArgs e)
         {
             Console.WriteLine(e);
+        }
+
+        public static async Task<AdhocWorkspace> GetWorkspaceWithPreventBuildEvent2(this AnalyzerManager manager)
+        {
+            var projPath = manager.Projects.First().Value.ProjectFile.Path;
+            var ws = new AdhocWorkspace();
+            foreach (var result in await GetAnalyzerResults(manager, projPath))
+            {
+                if (result.Succeeded)
+                {
+                    result.AddToWorkspace(ws);
+                }
+            }
+            return ws;
         }
 
         public static AdhocWorkspace GetWorkspaceWithPreventBuildEvent(this AnalyzerManager manager)
