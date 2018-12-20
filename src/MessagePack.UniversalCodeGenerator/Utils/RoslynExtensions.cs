@@ -20,7 +20,7 @@ namespace MessagePack.CodeGenerator
         static (string fname, string args) GetBuildCommandLine(string csprojPath, string tempPath)
         {
             string fname = "dotnet";
-            const string tasks = "Restore;ResolveAssemblyReferencesDesignTime;ResolveProjectReferencesDesignTime;ResolveComReferencesDesignTime;Compile";
+            const string tasks = "ResolveAssemblyReferencesDesignTime;ResolveProjectReferencesDesignTime;ResolveComReferencesDesignTime;Compile";
             Dictionary<string, string> properties = new Dictionary<string, string>()
                 {
                     {"IntermediateOutputPath", tempPath},
@@ -44,12 +44,12 @@ namespace MessagePack.CodeGenerator
             if (Environment.OSVersion.Platform != PlatformID.Win32NT)
             {
                 fname = "msbuild";
-                return (fname, $"\"${csprojPath}\" /t:${tasks} ${propargs} /bl:\"{Path.Combine(tempPath, "build.binlog")}\"");
+                return (fname, $"\"{csprojPath}\" /t:{tasks} {propargs} /bl:\"{Path.Combine(tempPath, "build.binlog")}\" /v:n");
             }
             else
             {
                 fname = "dotnet";
-                return (fname, $"msbuild \"{csprojPath}\" /t:{tasks} {propargs} /bl:\"{Path.Combine(tempPath, "build.binlog")}\"");
+                return (fname, $"msbuild \"{csprojPath}\" /t:{tasks} {propargs} /bl:\"{Path.Combine(tempPath, "build.binlog")}\" /v:n");
             }
         }
         static async Task<AnalyzerResult[]> GetAnalyzerResults(AnalyzerManager analyzerManager, string csprojPath, params string[] preprocessorSymbols)
@@ -58,6 +58,7 @@ namespace MessagePack.CodeGenerator
             try
             {
                 var (fname, args) = GetBuildCommandLine(csprojPath, tempPath);
+                Console.WriteLine($"begin execute: {fname}, {args}");
                 using (var stdout = Console.OpenStandardOutput())
                 using (var stderr = Console.OpenStandardError())
                 {
@@ -109,6 +110,10 @@ namespace MessagePack.CodeGenerator
                 if (result.Succeeded)
                 {
                     result.AddToWorkspace(ws);
+                }
+                else
+                {
+                    Console.WriteLine($"build failed");
                 }
             }
             return ws;
