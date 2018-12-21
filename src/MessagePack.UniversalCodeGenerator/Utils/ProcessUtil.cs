@@ -30,7 +30,6 @@ namespace MessagePack.CodeGenerator
                 {
                     throw new InvalidOperationException($"failed to start process(fileName = {fileName}, args = {args})");
                 }
-                Console.WriteLine($"process begin {proc.Id}");
                 int exitCode = 0;
                 await Task.WhenAll(
                     Task.Run(() =>
@@ -58,15 +57,12 @@ namespace MessagePack.CodeGenerator
                         }
                     })
                 );
-                Console.WriteLine($"await end");
                 if(exitCode >= 0)
                 {
-                    Console.WriteLine($"exited");
                     return proc.ExitCode;
                 }
                 else
                 {
-                    Console.WriteLine($"cancelled");
                     return -1;
                 }
             }
@@ -89,18 +85,15 @@ namespace MessagePack.CodeGenerator
             exitedct.Token.WaitHandle.WaitOne();
             if (cts.IsCancellationRequested)
             {
-                Console.WriteLine($"process exited");
                 proc.WaitForExit();
                 var exitCode = proc.ExitCode;
                 return exitCode;
             }
             else
             {
-                Console.WriteLine($"cancelled");
                 proc.StandardOutput.Dispose();
                 proc.StandardError.Dispose();
                 proc.Kill();
-                Console.WriteLine($"dispose end");
                 return -1;
             }
         }
@@ -120,26 +113,16 @@ namespace MessagePack.CodeGenerator
                             break;
                         }
                         stdout.Write(buf, 0, bytesread);
-                        // var l = await procStdout.ReadLineAsync();
-                        // if(l == null)
-                        // {
-                        //     break;
-                        // }
-                        // var bytesread = Encoding.UTF8.GetBytes(l, 0, l.Length, buf, 0);
-                        // stdout.Write(buf, 0, bytesread);
                     }
-                    catch(NullReferenceException e)
+                    catch(NullReferenceException)
                     {
-                        Console.WriteLine($"{suffix}: {e}");
                         break;
                     }
-                    catch(ObjectDisposedException e)
+                    catch(ObjectDisposedException)
                     {
-                        Console.WriteLine($"{suffix}: {e}");
                         break;
                     }
                 }
-                Console.WriteLine($"loop end:{suffix}");
             }
         }
 
