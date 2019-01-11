@@ -73,6 +73,8 @@ namespace MessagePack.CodeGenerator
                     {
                         await stdout2.CopyToAsync(consoleStdout).ConfigureAwait(false);
                         await stderr2.CopyToAsync(consoleStderr).ConfigureAwait(false);
+                        consoleStdout.Flush();
+                        consoleStderr.Flush();
                     }
                     return exitCode == 0;
                 }
