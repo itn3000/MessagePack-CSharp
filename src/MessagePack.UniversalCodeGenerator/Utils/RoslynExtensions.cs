@@ -25,6 +25,7 @@ namespace MessagePack.CodeGenerator
             // https://github.com/daveaglick/Buildalyzer/blob/b42d2e3ba1b3673a8133fb41e72b507b01bce1d6/src/Buildalyzer/Environment/BuildEnvironment.cs#L86-L96
             Dictionary<string, string> properties = new Dictionary<string, string>()
                 {
+                    // trailing '\' caused unexpected escape
                     {"IntermediateOutputPath", $"{tempPath}/"},
                     {"ProviderCommandLineArgs", "true"},
                     {"GenerateResourceMSBuildArchitecture", "CurrentArchitecture"},
@@ -99,6 +100,11 @@ namespace MessagePack.CodeGenerator
                     {
                         throw new Exception("failed to build project");
                     }
+                }
+                if(File.Exists(Path.Combine(tempPath, "build.binlog")))
+                {
+                    // copy binlog for debugging
+                    File.Copy(Path.Combine(tempPath, "build.binlog"), "build.binlog", true);
                 }
                 // get results of analysis from binarylog
                 return analyzerManager.Analyze(Path.Combine(tempPath, "build.binlog")).ToArray();
