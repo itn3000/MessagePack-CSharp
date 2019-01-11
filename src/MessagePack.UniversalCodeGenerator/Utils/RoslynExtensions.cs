@@ -40,7 +40,7 @@ namespace MessagePack.CodeGenerator
                     {"UseCommonOutputDirectory", "true"},
                     {"GeneratePackageOnBuild", "false"},
                     {"RunPostBuildEvent", "false"},
-                    {"SolutionDir", $"{new FileInfo(csprojPath).FullName}{Path.DirectorySeparatorChar}"}
+                    {"SolutionDir", $"{new FileInfo(csprojPath).Directory.FullName}{Path.DirectorySeparatorChar}"}
                 };
             var propargs = string.Join(" ", properties.Select(kv => $"/p:{kv.Key}=\"{kv.Value}\""));
             // how to determine whether command should be executed('dotnet msbuild' or 'msbuild')?
@@ -65,23 +65,16 @@ namespace MessagePack.CodeGenerator
                 using (var stderr = new MemoryStream())
                 {
                     var exitCode = await ProcessUtil.ExecuteProcessAsync(fname, args, stdout, stderr, null).ConfigureAwait(false);
-                    if (exitCode == 0)
+                    // write process output to stdout and stderr.
+                    using (var stdout2 = new MemoryStream(stdout.ToArray()))
+                    using (var stderr2 = new MemoryStream(stderr.ToArray()))
+                    using (var consoleStdout = Console.OpenStandardOutput())
+                    using (var consoleStderr = Console.OpenStandardError())
                     {
-                        return true;
+                        await stdout2.CopyToAsync(consoleStdout).ConfigureAwait(false);
+                        await stderr2.CopyToAsync(consoleStderr).ConfigureAwait(false);
                     }
-                    else
-                    {
-                        // write process output to stdout and stderr when error.
-                        using (var stdout2 = new MemoryStream(stdout.ToArray()))
-                        using (var stderr2 = new MemoryStream(stderr.ToArray()))
-                        using (var consoleStdout = Console.OpenStandardOutput())
-                        using (var consoleStderr = Console.OpenStandardError())
-                        {
-                            await stdout2.CopyToAsync(consoleStdout).ConfigureAwait(false);
-                            await stderr2.CopyToAsync(consoleStderr).ConfigureAwait(false);
-                        }
-                        return false;
-                    }
+                    return exitCode == 0;
                 }
             }
             catch (Exception e)
