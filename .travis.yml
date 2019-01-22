@@ -1,14 +1,10 @@
 language: csharp
 solution: MessagePack.sln
+matrix:
+  include:
+    - dotnet: 2.1.502
+    - mono: 5.16
 script:
-  - curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install > brewcask.rb
-  - sudo ruby -e brewcask.rb
-  - sudo brew update
-  - sudo brew tap caskroom/cask
-  - sudo brew cask install dotnet
-  - cd sandbox/SharedData
-  - nuget restore
   - cd src/MessagePack.UniversalCodeGenerator
   - dotnet build
   - dotnet run -- -i ../../sandbox/SharedData/SharedData.csproj -o ../../output.txt
-  
