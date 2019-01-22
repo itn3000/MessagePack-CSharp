@@ -3,7 +3,7 @@ solution: MessagePack.sln
 matrix:
   include:
     - dotnet: 2.1.502
-    - mono: 5.16
+    - mono: latest
 script:
   - cd src/MessagePack.UniversalCodeGenerator
   - dotnet build
