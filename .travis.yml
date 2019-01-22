@@ -8,3 +8,4 @@ script:
   - cd src/MessagePack.UniversalCodeGenerator
   - dotnet build
   - dotnet run -- -i ../../sandbox/SharedData/SharedData.csproj -o ../../output.txt
+  - cat ../../output.txt
