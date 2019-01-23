@@ -133,7 +133,18 @@ namespace MessagePack.CodeGenerator
             project = project
                 .WithParseOptions((project.ParseOptions as CSharpParseOptions).WithPreprocessorSymbols(preprocessorSymbols))
                 .WithCompilationOptions((project.CompilationOptions as CSharpCompilationOptions).WithAllowUnsafe(true));
-
+            foreach(var item in project.Documents)
+            {
+                Console.WriteLine($"item.path={item.FilePath},item.name={item.Name},item.kind={item.SourceCodeKind}");
+            }
+            foreach(var r in project.ProjectReferences)
+            {
+                Console.WriteLine($"projectref={r.ProjectId}");
+            }
+            foreach(var d in project.ParseOptions.PreprocessorSymbolNames)
+            {
+                Console.WriteLine($"def={d}");
+            }
             var compilation = await project.GetCompilationAsync().ConfigureAwait(false);
             return compilation;
         }
