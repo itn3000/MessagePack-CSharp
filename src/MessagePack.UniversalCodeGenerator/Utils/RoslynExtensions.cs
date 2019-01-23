@@ -153,6 +153,14 @@ namespace MessagePack.CodeGenerator
                 // getting only successful build
                 if (result.Succeeded)
                 {
+                    foreach(var src in result.SourceFiles)
+                    {
+                        Console.WriteLine($"src={src}");
+                    }
+                    foreach(var r in result.References)
+                    {
+                        Console.WriteLine($"ref={r}");
+                    }
                     result.AddToWorkspace(ws);
                 }
             }
