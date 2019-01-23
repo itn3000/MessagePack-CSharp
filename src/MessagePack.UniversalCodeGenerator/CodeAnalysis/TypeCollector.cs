@@ -218,7 +218,7 @@ namespace MessagePack.CodeGenerator
                     case TypeKind.Class:
                     case TypeKind.Struct:
                     case TypeKind.Interface:
-                        Console.WriteLine($"name={x.Name},attrs={string.Join("|", x.GetAttributes().Select(attr => attr.AttributeClass.Name))},{x.IsAbstract}");
+                        Console.WriteLine($"name={x.Name},display={x.ToDisplayString()},attrs={string.Join("|", x.GetAttributes().Select(attr => attr.AttributeClass))},{x.IsAbstract}");
                         break;
                     default:
                         break;
@@ -228,8 +228,22 @@ namespace MessagePack.CodeGenerator
             this.disallowInternal = disallowInternal;
             this.isForceUseMap = isForceUseMap;
 
-            Console.WriteLine($"typerefs.union={typeReferences.UnionAttribute}");
-            Console.WriteLine($"typerefs.msgpack={typeReferences.MessagePackObjectAttribute}");
+            if(typeReferences.UnionAttribute != null)
+            {
+                Console.WriteLine($"typerefs.union={typeReferences.UnionAttribute},{typeReferences.UnionAttribute.ToDisplayString()}");
+            }
+            else
+            {
+                Console.WriteLine($"typerefs.union is null");
+            }
+            if(typeReferences.MessagePackObjectAttribute != null)
+            {
+                Console.WriteLine($"typerefs.msgpack={typeReferences.MessagePackObjectAttribute},{typeReferences.MessagePackObjectAttribute.ToDisplayString()}");
+            }
+            else
+            {
+                Console.WriteLine($"typerefs.msgpack is null");
+            }
 
             targetTypes = compilation.GetNamedTypeSymbols()
                 .Where(x =>
