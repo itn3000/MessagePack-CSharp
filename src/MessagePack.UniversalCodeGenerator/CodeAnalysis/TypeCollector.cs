@@ -224,6 +224,14 @@ namespace MessagePack.CodeGenerator
                         break;
                 }
             }
+            foreach(var extref in compilation.ExternalReferences)
+            {
+                Console.WriteLine($"extref={extref.Display},{extref.Properties.Kind}");
+            }
+            foreach(var r in compilation.References)
+            {
+                Console.WriteLine($"metaref={r.Display},{r.Properties.Kind}");
+            }
             this.typeReferences = new ReferenceSymbols(compilation);
             this.disallowInternal = disallowInternal;
             this.isForceUseMap = isForceUseMap;
