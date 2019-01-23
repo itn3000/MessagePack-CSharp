@@ -246,6 +246,11 @@ namespace MessagePack.CodeGenerator
                     || ((x.TypeKind == TypeKind.Struct) && x.GetAttributes().Any(x2 => x2.AttributeClass == typeReferences.MessagePackObjectAttribute))
                     )
                 .ToArray();
+            Console.WriteLine($"targetTypes num is {targetTypes.Length}");
+            foreach(var tgt in targetTypes)
+            {
+                Console.WriteLine($"targetType.Name = {tgt.Name}");
+            }
         }
 
         void ResetWorkspace()
