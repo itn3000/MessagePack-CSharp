@@ -228,6 +228,9 @@ namespace MessagePack.CodeGenerator
             this.disallowInternal = disallowInternal;
             this.isForceUseMap = isForceUseMap;
 
+            Console.WriteLine($"typerefs.union={typeReferences.UnionAttribute}");
+            Console.WriteLine($"typerefs.msgpack={typeReferences.MessagePackObjectAttribute}");
+
             targetTypes = compilation.GetNamedTypeSymbols()
                 .Where(x =>
                 {
