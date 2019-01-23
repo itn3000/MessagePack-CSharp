@@ -210,6 +210,20 @@ namespace MessagePack.CodeGenerator
         {
             this.csProjPath = csProjPath;
             var compilation = RoslynExtensions.GetCompilationFromProject(csProjPath, conditinalSymbols.Concat(new[] { CodegeneratorOnlyPreprocessorSymbol }).ToArray()).GetAwaiter().GetResult();
+            foreach(var x in compilation.GetNamedTypeSymbols())
+            {
+                Console.WriteLine($"{x.Name},{x.TypeKind}");
+                switch (x.TypeKind)
+                {
+                    case TypeKind.Class:
+                    case TypeKind.Struct:
+                    case TypeKind.Interface:
+                        Console.WriteLine($"name={x.Name},attrs={string.Join("|", x.GetAttributes().Select(attr => attr.AttributeClass.Name))}");
+                        break;
+                    default:
+                        break;
+                }
+            }
             this.typeReferences = new ReferenceSymbols(compilation);
             this.disallowInternal = disallowInternal;
             this.isForceUseMap = isForceUseMap;
