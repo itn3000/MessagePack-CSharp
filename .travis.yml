@@ -1,0 +1,11 @@
+language: csharp
+solution: MessagePack.sln
+matrix:
+  include:
+    - dotnet: 2.1.502
+    - mono: latest
+script:
+  - cd src/MessagePack.UniversalCodeGenerator
+  - dotnet build
+  - dotnet run -- -i ../../sandbox/SharedData/SharedData.csproj -o ../../output.txt
+  - cat ../../output.txt
