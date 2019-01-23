@@ -218,7 +218,7 @@ namespace MessagePack.CodeGenerator
                     case TypeKind.Class:
                     case TypeKind.Struct:
                     case TypeKind.Interface:
-                        Console.WriteLine($"name={x.Name},attrs={string.Join("|", x.GetAttributes().Select(attr => attr.AttributeClass.Name))}");
+                        Console.WriteLine($"name={x.Name},attrs={string.Join("|", x.GetAttributes().Select(attr => attr.AttributeClass.Name))},{x.IsAbstract}");
                         break;
                     default:
                         break;
