@@ -20,6 +20,10 @@ steps:
 - task: NuGetCommand@2
   inputs:
     restoreSolution: '$(solution)'
+- task: MsBuild@1
+  inputs:
+    msbuildArguments: "/t:Build"
+    solution: src/MessagePack/MessagePack.csproj
 
 - task: DotNetCoreCLI@2
   inputs:
