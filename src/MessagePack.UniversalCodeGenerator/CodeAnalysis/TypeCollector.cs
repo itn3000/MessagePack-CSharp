@@ -210,7 +210,17 @@ namespace MessagePack.CodeGenerator
         {
             this.csProjPath = csProjPath;
             var compilation = RoslynExtensions.GetCompilationFromProject(csProjPath, conditinalSymbols.Concat(new[] { CodegeneratorOnlyPreprocessorSymbol }).ToArray()).GetAwaiter().GetResult();
-            foreach(var x in compilation.GetNamedTypeSymbols())
+            var metaData = compilation.Assembly.GetMetadata();
+            if (metaData == null)
+            {
+                Console.WriteLine($"compiled assembly does not have metadata");
+            }
+            else
+            {
+                var metaref = metaData.GetReference();
+                Console.WriteLine($"{metaref.Display}");
+            }
+            foreach (var x in compilation.GetNamedTypeSymbols())
             {
                 Console.WriteLine($"{x.Name},{x.TypeKind}");
                 switch (x.TypeKind)
