@@ -7,7 +7,7 @@ matrix:
     - dotnet: 2.1.502
       os: linux
     - dotnet: 2.2.103
-      os: linux
+      os: osx
 script:
   - cd src/MessagePack.UniversalCodeGenerator
   - dotnet build
