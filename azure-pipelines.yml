@@ -25,4 +25,8 @@ steps:
   inputs:
     command: "run"
     workingDirectory: src/MessagePack.UniversalCodeGenerator
-    arguments: "-- -i ../../sandbox/SharedData/SharedData.csproj -o output.txt"
+    arguments: "-- -i ../../sandbox/SharedData/SharedData.csproj -o ../../output.txt"
+- task: PublishBuildArtifacts@1
+  inputs:
+    pathToPublish: output.txt
+    artifactName: output
