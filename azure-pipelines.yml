@@ -27,7 +27,7 @@ steps:
     platform: '$(buildPlatform)'
     configuration: '$(buildConfiguration)'
 
-- task: DotNetCoreCLIV2@2
+- task: DotNetCoreCLI@2
   inputs:
     command: "run"
     workingDirectory: src/MessagePack.UniversalCodeGenerator
