@@ -27,8 +27,8 @@ steps:
     platform: '$(buildPlatform)'
     configuration: '$(buildConfiguration)'
 
-- task: DotNetCoreCLIV2@0
+- task: DotNetCoreCLIV2@1
   inputs:
-    Command: "run"
-    Projects: "src/MessagePack.UniversalCodeGenerator/MessagePack.UniversalCodeGenerator.csproj"
-    Arguments: "-- -i sandbox/SharedData/SharedData.csproj -o output.txt"
+    command: "run"
+    workingDirectory: src/MessagePack.UniversalCodeGenerator
+    arguments: "-- -i ../sandbox/SharedData/SharedData.csproj -o output.txt"
