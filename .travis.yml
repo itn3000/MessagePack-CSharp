@@ -11,8 +11,9 @@ matrix:
       dist: xenial
 script:
   - cd src/MessagePack
-  - dotnet build
+  - dotnet build -f netstandard2.0
+  - dotnet build -f netstandard1.6
+  - "msbuild /t:Build"
   - cd ../MessagePack.UniversalCodeGenerator
-  - dotnet build
   - dotnet run -- -i ../../sandbox/SharedData/SharedData.csproj -o ../../output.txt
   - cat ../../output.txt
