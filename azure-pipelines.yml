@@ -30,11 +30,5 @@ steps:
 - task: DotNetCoreCLIV2@0
   inputs:
     Command: "run"
-    Projects:
-      - "src/MessagePack.UniversalCodeGenerator/MessagePack.UniversalCodeGenerator.csproj"
-    Arguments:
-      - "--"
-      - "-i"
-      - "sandbox/SharedData/SharedData.csproj"
-      - "-o"
-      - "output.txt"
+    Projects: "src/MessagePack.UniversalCodeGenerator/MessagePack.UniversalCodeGenerator.csproj"
+    Arguments: "-- -i sandbox/SharedData/SharedData.csproj -o output.txt"
