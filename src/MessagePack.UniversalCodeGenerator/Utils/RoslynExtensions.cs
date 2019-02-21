@@ -1,8 +1,8 @@
 ﻿using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using Buildalyzer;
-using Buildalyzer.Workspaces;
+using Microsoft.CodeAnalysis.CSharp.Formatting;
+using Microsoft.CodeAnalysis.Text;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -10,7 +10,8 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Xml.Linq;
-using Buildalyzer.Environment;
+
+using StLogger = Microsoft.Build.Logging.StructuredLogger;
 
 namespace MessagePack.CodeGenerator
 {
@@ -20,13 +21,11 @@ namespace MessagePack.CodeGenerator
         static (string fname, string args) GetBuildCommandLine(string csprojPath, string tempPath, bool useDotNet)
         {
             string fname = "dotnet";
-            const string tasks = "ResolveAssemblyReferencesDesignTime;ResolveProjectReferencesDesignTime;ResolveComReferencesDesignTime;Compile";
+            const string tasks = "ResolveReferences";
             // from Buildalyzer implementation
             // https://github.com/daveaglick/Buildalyzer/blob/b42d2e3ba1b3673a8133fb41e72b507b01bce1d6/src/Buildalyzer/Environment/BuildEnvironment.cs#L86-L96
             Dictionary<string, string> properties = new Dictionary<string, string>()
                 {
-                    // trailing '\' may cause unexpected escape
-                    {"IntermediateOutputPath", tempPath + "/"},
                     {"ProviderCommandLineArgs", "true"},
                     {"GenerateResourceMSBuildArchitecture", "CurrentArchitecture"},
                     {"DesignTimeBuild", "true"},
@@ -91,7 +90,7 @@ namespace MessagePack.CodeGenerator
                 return false;
             }
         }
-        static async Task<AnalyzerResult[]> GetAnalyzerResults(AnalyzerManager analyzerManager, string csprojPath, params string[] preprocessorSymbols)
+        static async Task<StLogger.Build> GetBuildResult(string csprojPath, params string[] preprocessorSymbols)
         {
             var tempPath = Path.Combine(new FileInfo(csprojPath).Directory.FullName, "__buildtemp");
             try
@@ -104,8 +103,16 @@ namespace MessagePack.CodeGenerator
                         throw new Exception("failed to build project");
                     }
                 }
-                // get results of analysis from binarylog
-                return analyzerManager.Analyze(Path.Combine(tempPath, "build.binlog")).ToArray();
+                var reader = new StLogger.BinLogReader();
+                var stlogger = new StLogger.StructuredLogger();
+                // prevent output temporary file
+                StLogger.StructuredLogger.SaveLogToDisk = false;
+                // never output, but if not set, throw exception when initializing
+                stlogger.Parameters = "tmp.buildlog";
+                stlogger.Initialize(reader);
+                reader.Replay(Path.Combine(tempPath, "build.binlog"));
+                stlogger.Shutdown();
+                return stlogger.Construction.Build;
             }
             finally
             {
@@ -115,16 +122,116 @@ namespace MessagePack.CodeGenerator
                 }
             }
         }
+        // static async Task<AnalyzerResult[]> GetAnalyzerResults(AnalyzerManager analyzerManager, string csprojPath, params string[] preprocessorSymbols)
+        // {
+        //     var tempPath = Path.Combine(new FileInfo(csprojPath).Directory.FullName, "__buildtemp");
+        //     try
+        //     {
+        //         if (!await TryExecute(csprojPath, tempPath, true).ConfigureAwait(false))
+        //         {
+        //             Console.WriteLine("execute `dotnet msbuild` failed, retry with `msbuild`");
+        //             if (!await TryExecute(csprojPath, tempPath, false).ConfigureAwait(false))
+        //             {
+        //                 throw new Exception("failed to build project");
+        //             }
+        //         }
+
+        //         // get results of analysis from binarylog
+        //         return analyzerManager.Analyze(Path.Combine(tempPath, "build.binlog")).ToArray();
+        //     }
+        //     finally
+        //     {
+        //         if (Directory.Exists(tempPath))
+        //         {
+        //             Directory.Delete(tempPath, true);
+        //         }
+        //     }
+        // }
+        public static Workspace GetWorkspaceFromBuild(this StLogger.Build build, params string[] preprocessorSymbols)
+        {
+            var csproj = build.Children.OfType<StLogger.Project>().FirstOrDefault();
+            if (csproj == null)
+            {
+                throw new InvalidOperationException("cannot find cs project build");
+            }
+            StLogger.Item[] compileItems = Array.Empty<StLogger.Item>();
+            var properties = new Dictionary<string, StLogger.Property>();
+            foreach (var folder in csproj.Children.OfType<StLogger.Folder>())
+            {
+                if (folder.Name == "Items")
+                {
+                    compileItems = folder.Children.OfType<StLogger.Item>().ToArray();
+                }
+                else if (folder.Name == "Properties")
+                {
+                    properties = folder.Children.OfType<StLogger.Property>().ToDictionary(x => x.Name);
+                }
+            }
+            var assemblies = Array.Empty<StLogger.Item>();
+            foreach (var target in csproj.Children.OfType<StLogger.Target>())
+            {
+                if (target.Name == "ResolveReferences")
+                {
+                    var folder = target.Children.OfType<StLogger.Folder>().Where(x => x.Name == "TargetOutputs").FirstOrDefault();
+                    if (folder == null)
+                    {
+                        throw new InvalidOperationException("cannot find result of resolving assembly");
+                    }
+                    assemblies = folder.Children.OfType<StLogger.Item>().ToArray();
+                }
+            }
+            var ws = new AdhocWorkspace();
+            var roslynProject = ws.AddProject(Path.GetFileNameWithoutExtension(csproj.ProjectFile), Microsoft.CodeAnalysis.LanguageNames.CSharp);
+            var projectDir = properties["ProjectDir"].Value;
+            var projectGuid = ProjectId.CreateFromSerialized(Guid.Parse(properties["ProjectGuid"].Value));
+            foreach (var compile in compileItems)
+            {
+                var filePath = compile.Name;
+                DocumentInfo.Create(DocumentId.CreateNewId(projectGuid), compile.Name, filePath: compile.Name,
+                    loader: TextLoader.From(
+                        TextAndVersion.Create(SourceText.From(File.ReadAllText(Path.Combine(projectDir, filePath)))
+                            , VersionStamp.Default
+                        )));
+                roslynProject.AddDocument(filePath, File.ReadAllText(filePath));
+            }
+            foreach (var asm in assemblies)
+            {
+                roslynProject.AddMetadataReference(MetadataReference.CreateFromFile(asm.Text));
+            }
+            var compopt = roslynProject.CompilationOptions as CSharpCompilationOptions;
+            compopt = roslynProject.CompilationOptions as CSharpCompilationOptions;
+            compopt = compopt ?? new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary);
+            OutputKind kind;
+            switch (properties["OutputType"].Value)
+            {
+                case "Exe":
+                    kind = OutputKind.ConsoleApplication;
+                    break;
+                case "Library":
+                    kind = OutputKind.DynamicallyLinkedLibrary;
+                    break;
+                default:
+                    kind = OutputKind.DynamicallyLinkedLibrary;
+                    break;
+            }
+            roslynProject = roslynProject.WithCompilationOptions(compopt.WithOutputKind(kind).WithAllowUnsafe(true));
+            var parseopt = roslynProject.ParseOptions as CSharpParseOptions;
+            roslynProject = roslynProject.WithParseOptions(parseopt.WithPreprocessorSymbols(preprocessorSymbols));
+            return ws;
+        }
         public static async Task<Compilation> GetCompilationFromProject(string csprojPath, params string[] preprocessorSymbols)
         {
-            var analyzerOptions = new AnalyzerManagerOptions();
+            // var analyzerOptions = new AnalyzerManagerOptions();
             // analyzerOptions.LogWriter = Console.Out;
 
-            var manager = new AnalyzerManager();
-            var projectAnalyzer = manager.GetProject(csprojPath); // addproj
+            // var manager = new AnalyzerManager();
+            // var projectAnalyzer = manager.GetProject(csprojPath); // addproj
             // projectAnalyzer.AddBuildLogger(new Microsoft.Build.Logging.ConsoleLogger(Microsoft.Build.Framework.LoggerVerbosity.Minimal));
 
-            var workspace = await manager.GetWorkspaceWithPreventBuildEventAsync().ConfigureAwait(false);
+            var build = await GetBuildResult(csprojPath, preprocessorSymbols).ConfigureAwait(false);
+
+            // var workspace = await manager.GetWorkspaceWithPreventBuildEventAsync().ConfigureAwait(false);
+            var workspace = GetWorkspaceFromBuild(build, preprocessorSymbols);
 
             workspace.WorkspaceFailed += WorkSpaceFailed;
             var project = workspace.CurrentSolution.Projects.First();
@@ -142,20 +249,20 @@ namespace MessagePack.CodeGenerator
         }
 
         // WIP function for getting Roslyn's workspace from csproj
-        public static async Task<AdhocWorkspace> GetWorkspaceWithPreventBuildEventAsync(this AnalyzerManager manager)
-        {
-            var projPath = manager.Projects.First().Value.ProjectFile.Path;
-            var ws = new AdhocWorkspace();
-            foreach (var result in await GetAnalyzerResults(manager, projPath))
-            {
-                // getting only successful build
-                if (result.Succeeded)
-                {
-                    result.AddToWorkspace(ws);
-                }
-            }
-            return ws;
-        }
+        // public static async Task<AdhocWorkspace> GetWorkspaceWithPreventBuildEventAsync(this AnalyzerManager manager)
+        // {
+        //     var projPath = manager.Projects.First().Value.ProjectFile.Path;
+        //     var ws = new AdhocWorkspace();
+        //     foreach (var result in await GetAnalyzerResults(manager, projPath))
+        //     {
+        //         // getting only successful build
+        //         if (result.Succeeded)
+        //         {
+        //             result.AddToWorkspace(ws);
+        //         }
+        //     }
+        //     return ws;
+        // }
 
         public static AdhocWorkspace GetWorkspace(this AnalyzerManager manager, EnvironmentOptions envOptions)
         {
