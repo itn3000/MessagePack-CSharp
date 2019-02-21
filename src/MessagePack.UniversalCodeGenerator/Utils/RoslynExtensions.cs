@@ -160,7 +160,12 @@ namespace MessagePack.CodeGenerator
             {
                 if (folder.Name == "Items")
                 {
-                    compileItems = folder.Children.OfType<StLogger.Item>().ToArray();
+                    var compileFolder = folder.Children.OfType<StLogger.Folder>().FirstOrDefault(x => x.Name == "Compile");
+                    if (compileFolder == null)
+                    {
+                        throw new InvalidOperationException("failed to get compililation documents");
+                    }
+                    compileItems = compileFolder.Children.OfType<StLogger.Item>().ToArray();
                 }
                 else if (folder.Name == "Properties")
                 {
@@ -183,20 +188,19 @@ namespace MessagePack.CodeGenerator
             var ws = new AdhocWorkspace();
             var roslynProject = ws.AddProject(Path.GetFileNameWithoutExtension(csproj.ProjectFile), Microsoft.CodeAnalysis.LanguageNames.CSharp);
             var projectDir = properties["ProjectDir"].Value;
-            var projectGuid = ProjectId.CreateFromSerialized(Guid.Parse(properties["ProjectGuid"].Value));
+            var pguid = properties.ContainsKey("ProjectGuid") ? Guid.Parse("ProjectGuid") : Guid.NewGuid();
+            var projectGuid = ProjectId.CreateFromSerialized(pguid);
+            Console.WriteLine($"projectDir = {projectDir}");
             foreach (var compile in compileItems)
             {
-                var filePath = compile.Name;
-                DocumentInfo.Create(DocumentId.CreateNewId(projectGuid), compile.Name, filePath: compile.Name,
-                    loader: TextLoader.From(
-                        TextAndVersion.Create(SourceText.From(File.ReadAllText(Path.Combine(projectDir, filePath)))
-                            , VersionStamp.Default
-                        )));
-                roslynProject.AddDocument(filePath, File.ReadAllText(filePath));
+                var filePath = compile.Text;
+                var absFilePath = Path.Combine(projectDir, filePath);
+                Console.WriteLine($"compitem = {filePath}");
+                roslynProject = roslynProject.AddDocument(filePath, File.ReadAllText(absFilePath)).Project;
             }
             foreach (var asm in assemblies)
             {
-                roslynProject.AddMetadataReference(MetadataReference.CreateFromFile(asm.Text));
+                roslynProject = roslynProject.AddMetadataReference(MetadataReference.CreateFromFile(asm.Text));
             }
             var compopt = roslynProject.CompilationOptions as CSharpCompilationOptions;
             compopt = roslynProject.CompilationOptions as CSharpCompilationOptions;
@@ -217,6 +221,10 @@ namespace MessagePack.CodeGenerator
             roslynProject = roslynProject.WithCompilationOptions(compopt.WithOutputKind(kind).WithAllowUnsafe(true));
             var parseopt = roslynProject.ParseOptions as CSharpParseOptions;
             roslynProject = roslynProject.WithParseOptions(parseopt.WithPreprocessorSymbols(preprocessorSymbols));
+            if(!ws.TryApplyChanges(roslynProject.Solution))
+            {
+                throw new InvalidOperationException("failed to apply solution changes to workspace");
+            }
             return ws;
         }
         public static async Task<Compilation> GetCompilationFromProject(string csprojPath, params string[] preprocessorSymbols)
@@ -233,8 +241,13 @@ namespace MessagePack.CodeGenerator
             // var workspace = await manager.GetWorkspaceWithPreventBuildEventAsync().ConfigureAwait(false);
             var workspace = GetWorkspaceFromBuild(build, preprocessorSymbols);
 
+
             workspace.WorkspaceFailed += WorkSpaceFailed;
             var project = workspace.CurrentSolution.Projects.First();
+            foreach (var doc in project.Documents)
+            {
+                Console.WriteLine($"doc2 = {doc.Name}");
+            }
             project = project
                 .WithParseOptions((project.ParseOptions as CSharpParseOptions).WithPreprocessorSymbols(preprocessorSymbols))
                 .WithCompilationOptions((project.CompilationOptions as CSharpCompilationOptions).WithAllowUnsafe(true));
@@ -264,23 +277,23 @@ namespace MessagePack.CodeGenerator
         //     return ws;
         // }
 
-        public static AdhocWorkspace GetWorkspace(this AnalyzerManager manager, EnvironmentOptions envOptions)
-        {
-            // Run builds in parallel
-            List<AnalyzerResult> results = manager.Projects.Values
-                .AsParallel()
-                .Select(p => p.Build(envOptions).FirstOrDefault()) // with envoption
-                .Where(x => x != null)
-                .ToList();
+        // public static AdhocWorkspace GetWorkspace(this AnalyzerManager manager, EnvironmentOptions envOptions)
+        // {
+        //     // Run builds in parallel
+        //     List<AnalyzerResult> results = manager.Projects.Values
+        //         .AsParallel()
+        //         .Select(p => p.Build(envOptions).FirstOrDefault()) // with envoption
+        //         .Where(x => x != null)
+        //         .ToList();
 
-            // Add each result to a new workspace
-            AdhocWorkspace workspace = new AdhocWorkspace();
-            foreach (AnalyzerResult result in results)
-            {
-                result.AddToWorkspace(workspace);
-            }
-            return workspace;
-        }
+        //     // Add each result to a new workspace
+        //     AdhocWorkspace workspace = new AdhocWorkspace();
+        //     foreach (AnalyzerResult result in results)
+        //     {
+        //         result.AddToWorkspace(workspace);
+        //     }
+        //     return workspace;
+        // }
 
         public static IEnumerable<INamedTypeSymbol> GetNamedTypeSymbols(this Compilation compilation)
         {
