@@ -90,29 +90,73 @@ namespace MessagePack.CodeGenerator
                 return false;
             }
         }
-        static async Task<StLogger.Build> GetBuildResult(string csprojPath, params string[] preprocessorSymbols)
+        static IEnumerable<StLogger.Error> FindAllErrors(StLogger.Build build)
+        {
+            var lst = new List<StLogger.Error>();
+            build.VisitAllChildren<StLogger.Error>(er => lst.Add(er));
+            return ret;
+        }
+        static (StLogger.Build, IEnumerable<StLogger.Error>) ProcessBuildLog(string tempPath)
+        {
+            var reader = new StLogger.BinLogReader();
+            var stlogger = new StLogger.StructuredLogger();
+            // prevent output temporary file
+            StLogger.StructuredLogger.SaveLogToDisk = false;
+            // never output, but if not set, throw exception when initializing
+            stlogger.Parameters = "tmp.buildlog";
+            stlogger.Initialize(reader);
+            reader.Replay(Path.Combine(tempPath, "build.binlog"));
+            stlogger.Shutdown();
+            var buildlog = stlogger.Construction.Build;
+            if(buildlog.Succeeded)
+            {
+                return (buildlog, null);
+            }
+            else
+            {
+                var errors = FindAllErrors(buildlog);
+                return (null, errros);
+            }
+        }
+        static async Task<(StLogger.Build, IEnumerable<StLogger.Error>)> TryGetBuildResultAsync(string csprojPath, string tempPath, params string[] preprocessorSymbols)
         {
             var tempPath = Path.Combine(new FileInfo(csprojPath).Directory.FullName, "__buildtemp");
             try
             {
                 if (!await TryExecute(csprojPath, tempPath, true).ConfigureAwait(false))
                 {
+                    return (null, false);
+                }
+                else
+                {
+                    return ProcessBuildLog(tempPath);
+                }
+            }
+            finally
+            {
+                if (Directory.Exists(tempPath))
+                {
+                    Directory.Delete(tempPath, true);
+                }
+            }
+        }
+        static async Task<StLogger.Build> GetBuildResult(string csprojPath, params string[] preprocessorSymbols)
+        {
+            var tempPath = Path.Combine(new FileInfo(csprojPath).Directory.FullName, "__buildtemp");
+            try
+            {
+                var (build, errors) = await TryGetBuildResultAsync(csprojPath, tempPath, true, preprocessorSymbols.ConfigureAwait(false));
+                if (build == null)
+                {
                     Console.WriteLine("execute `dotnet msbuild` failed, retry with `msbuild`");
-                    if (!await TryExecute(csprojPath, tempPath, false).ConfigureAwait(false))
+                    var dotnetException = new InvalidOperationException($"failed to build project with dotnet:{string.Join("\n", errors)}")
+                    (build, errors) = await TryGetBuildResultAsync(csprojPath, tempPath, false, preprocessorSymbols.ConfigureAwait(false));
+                    if (build == null)
                     {
-                        throw new Exception("failed to build project");
+                        throw new InvalidOperationException($"failed to build project: {string.Join("\n", errors)}");
                     }
                 }
-                var reader = new StLogger.BinLogReader();
-                var stlogger = new StLogger.StructuredLogger();
-                // prevent output temporary file
-                StLogger.StructuredLogger.SaveLogToDisk = false;
-                // never output, but if not set, throw exception when initializing
-                stlogger.Parameters = "tmp.buildlog";
-                stlogger.Initialize(reader);
-                reader.Replay(Path.Combine(tempPath, "build.binlog"));
-                stlogger.Shutdown();
-                return stlogger.Construction.Build;
+                return build;
             }
             finally
             {
@@ -221,7 +265,7 @@ namespace MessagePack.CodeGenerator
             roslynProject = roslynProject.WithCompilationOptions(compopt.WithOutputKind(kind).WithAllowUnsafe(true));
             var parseopt = roslynProject.ParseOptions as CSharpParseOptions;
             roslynProject = roslynProject.WithParseOptions(parseopt.WithPreprocessorSymbols(preprocessorSymbols));
-            if(!ws.TryApplyChanges(roslynProject.Solution))
+            if (!ws.TryApplyChanges(roslynProject.Solution))
             {
                 throw new InvalidOperationException("failed to apply solution changes to workspace");
             }
@@ -240,7 +284,6 @@ namespace MessagePack.CodeGenerator
 
             // var workspace = await manager.GetWorkspaceWithPreventBuildEventAsync().ConfigureAwait(false);
             var workspace = GetWorkspaceFromBuild(build, preprocessorSymbols);
-
 
             workspace.WorkspaceFailed += WorkSpaceFailed;
             var project = workspace.CurrentSolution.Projects.First();
