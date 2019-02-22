@@ -21,7 +21,7 @@ namespace MessagePack.CodeGenerator
         static (string fname, string args) GetBuildCommandLine(string csprojPath, string tempPath, bool useDotNet)
         {
             string fname = "dotnet";
-            const string tasks = "ResolveReferences";
+            const string tasks = "Restore;ResolveReferences";
             // from Buildalyzer implementation
             // https://github.com/daveaglick/Buildalyzer/blob/b42d2e3ba1b3673a8133fb41e72b507b01bce1d6/src/Buildalyzer/Environment/BuildEnvironment.cs#L86-L96
             Dictionary<string, string> properties = new Dictionary<string, string>()
@@ -30,7 +30,7 @@ namespace MessagePack.CodeGenerator
                     {"GenerateResourceMSBuildArchitecture", "CurrentArchitecture"},
                     {"DesignTimeBuild", "true"},
                     {"BuildProjectReferences","false"},
-                    {"SkipCompilerExecution","true"},
+                    // {"SkipCompilerExecution","true"},
                     {"DisableRarCache", "true"},
                     {"AutoGenerateBindingRedirects", "false"},
                     {"CopyBuildOutputToOutputDirectory", "false"},
@@ -61,15 +61,20 @@ namespace MessagePack.CodeGenerator
             var (fname, args) = GetBuildCommandLine(csprojPath, tempPath, useDotNet);
             try
             {
+                var buildlogpath = Path.Combine(tempPath, "build.binlog");
+                if (File.Exists(buildlogpath))
+                {
+                    try
+                    {
+                        File.Delete(buildlogpath);
+                    }
+                    catch { }
+                }
                 using (var stdout = new MemoryStream())
                 using (var stderr = new MemoryStream())
                 {
                     var exitCode = await ProcessUtil.ExecuteProcessAsync(fname, args, stdout, stderr, null).ConfigureAwait(false);
-                    if (exitCode == 0)
-                    {
-                        return true;
-                    }
-                    else
+                    if (exitCode != 0)
                     {
                         // write process output to stdout and stderr when error.
                         using (var stdout2 = new MemoryStream(stdout.ToArray()))
@@ -80,8 +85,8 @@ namespace MessagePack.CodeGenerator
                             await stdout2.CopyToAsync(consoleStdout).ConfigureAwait(false);
                             await stderr2.CopyToAsync(consoleStderr).ConfigureAwait(false);
                         }
-                        return false;
                     }
+                    return File.Exists(buildlogpath);
                 }
             }
             catch (Exception e)
@@ -94,7 +99,7 @@ namespace MessagePack.CodeGenerator
         {
             var lst = new List<StLogger.Error>();
             build.VisitAllChildren<StLogger.Error>(er => lst.Add(er));
-            return ret;
+            return lst;
         }
         static (StLogger.Build, IEnumerable<StLogger.Error>) ProcessBuildLog(string tempPath)
         {
@@ -108,24 +113,23 @@ namespace MessagePack.CodeGenerator
             reader.Replay(Path.Combine(tempPath, "build.binlog"));
             stlogger.Shutdown();
             var buildlog = stlogger.Construction.Build;
-            if(buildlog.Succeeded)
+            if (buildlog.Succeeded)
             {
                 return (buildlog, null);
             }
             else
             {
                 var errors = FindAllErrors(buildlog);
-                return (null, errros);
+                return (null, errors);
             }
         }
-        static async Task<(StLogger.Build, IEnumerable<StLogger.Error>)> TryGetBuildResultAsync(string csprojPath, string tempPath, params string[] preprocessorSymbols)
+        static async Task<(StLogger.Build, IEnumerable<StLogger.Error>)> TryGetBuildResultAsync(string csprojPath, string tempPath, bool useDotNet, params string[] preprocessorSymbols)
         {
-            var tempPath = Path.Combine(new FileInfo(csprojPath).Directory.FullName, "__buildtemp");
             try
             {
-                if (!await TryExecute(csprojPath, tempPath, true).ConfigureAwait(false))
+                if (!await TryExecute(csprojPath, tempPath, useDotNet).ConfigureAwait(false))
                 {
-                    return (null, false);
+                    return (null, Array.Empty<StLogger.Error>());
                 }
                 else
                 {
@@ -145,12 +149,12 @@ namespace MessagePack.CodeGenerator
             var tempPath = Path.Combine(new FileInfo(csprojPath).Directory.FullName, "__buildtemp");
             try
             {
-                var (build, errors) = await TryGetBuildResultAsync(csprojPath, tempPath, true, preprocessorSymbols.ConfigureAwait(false));
+                (StLogger.Build build, IEnumerable<StLogger.Error> errors) = await TryGetBuildResultAsync(csprojPath, tempPath, true, preprocessorSymbols).ConfigureAwait(false);
                 if (build == null)
                 {
                     Console.WriteLine("execute `dotnet msbuild` failed, retry with `msbuild`");
-                    var dotnetException = new InvalidOperationException($"failed to build project with dotnet:{string.Join("\n", errors)}")
-                    (build, errors) = await TryGetBuildResultAsync(csprojPath, tempPath, false, preprocessorSymbols.ConfigureAwait(false));
+                    var dotnetException = new InvalidOperationException($"failed to build project with dotnet:{string.Join("\n", errors)}");
+                    (build, errors) = await TryGetBuildResultAsync(csprojPath, tempPath, false, preprocessorSymbols).ConfigureAwait(false);
                     if (build == null)
                     {
                         throw new InvalidOperationException($"failed to build project: {string.Join("\n", errors)}");
@@ -166,31 +170,6 @@ namespace MessagePack.CodeGenerator
                 }
             }
         }
-        // static async Task<AnalyzerResult[]> GetAnalyzerResults(AnalyzerManager analyzerManager, string csprojPath, params string[] preprocessorSymbols)
-        // {
-        //     var tempPath = Path.Combine(new FileInfo(csprojPath).Directory.FullName, "__buildtemp");
-        //     try
-        //     {
-        //         if (!await TryExecute(csprojPath, tempPath, true).ConfigureAwait(false))
-        //         {
-        //             Console.WriteLine("execute `dotnet msbuild` failed, retry with `msbuild`");
-        //             if (!await TryExecute(csprojPath, tempPath, false).ConfigureAwait(false))
-        //             {
-        //                 throw new Exception("failed to build project");
-        //             }
-        //         }
-
-        //         // get results of analysis from binarylog
-        //         return analyzerManager.Analyze(Path.Combine(tempPath, "build.binlog")).ToArray();
-        //     }
-        //     finally
-        //     {
-        //         if (Directory.Exists(tempPath))
-        //         {
-        //             Directory.Delete(tempPath, true);
-        //         }
-        //     }
-        // }
         public static Workspace GetWorkspaceFromBuild(this StLogger.Build build, params string[] preprocessorSymbols)
         {
             var csproj = build.Children.OfType<StLogger.Project>().FirstOrDefault();

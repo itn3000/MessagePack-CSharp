@@ -6,7 +6,9 @@ using System.Text;
 using System.Threading.Tasks;
 
 namespace TestData.InvalidSyntax
-{abcde
+{
+    // delibrated syntax error
+    abcde
     [MessagePackObject(true)]
     public class A { public int a; public List<B> bs; public C c; }
 
