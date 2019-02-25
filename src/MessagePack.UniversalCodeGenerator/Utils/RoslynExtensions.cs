@@ -253,26 +253,19 @@ namespace MessagePack.CodeGenerator
         }
         public static async Task<Compilation> GetCompilationFromProject(string csprojPath, params string[] preprocessorSymbols)
         {
-            // var analyzerOptions = new AnalyzerManagerOptions();
-            // analyzerOptions.LogWriter = Console.Out;
-
-            // var manager = new AnalyzerManager();
-            // var projectAnalyzer = manager.GetProject(csprojPath); // addproj
-            // projectAnalyzer.AddBuildLogger(new Microsoft.Build.Logging.ConsoleLogger(Microsoft.Build.Framework.LoggerVerbosity.Minimal));
-
             var build = await GetBuildResult(csprojPath, preprocessorSymbols).ConfigureAwait(false);
 
-            // var workspace = await manager.GetWorkspaceWithPreventBuildEventAsync().ConfigureAwait(false);
-            var workspace = GetWorkspaceFromBuild(build, preprocessorSymbols);
+            using (var workspace = GetWorkspaceFromBuild(build, preprocessorSymbols))
+            {
+                workspace.WorkspaceFailed += WorkSpaceFailed;
+                var project = workspace.CurrentSolution.Projects.First();
+                project = project
+                    .WithParseOptions((project.ParseOptions as CSharpParseOptions).WithPreprocessorSymbols(preprocessorSymbols))
+                    .WithCompilationOptions((project.CompilationOptions as CSharpCompilationOptions).WithAllowUnsafe(true));
 
-            workspace.WorkspaceFailed += WorkSpaceFailed;
-            var project = workspace.CurrentSolution.Projects.First();
-            project = project
-                .WithParseOptions((project.ParseOptions as CSharpParseOptions).WithPreprocessorSymbols(preprocessorSymbols))
-                .WithCompilationOptions((project.CompilationOptions as CSharpCompilationOptions).WithAllowUnsafe(true));
-
-            var compilation = await project.GetCompilationAsync().ConfigureAwait(false);
-            return compilation;
+                var compilation = await project.GetCompilationAsync().ConfigureAwait(false);
+                return compilation;
+            }
         }
 
         private static void WorkSpaceFailed(object sender, WorkspaceDiagnosticEventArgs e)
