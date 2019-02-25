@@ -218,11 +218,12 @@ namespace MessagePack.CodeGenerator
             {
                 var filePath = compile.Text;
                 var absFilePath = Path.Combine(projectDir, filePath);
-                Console.WriteLine($"compitem = {filePath}");
+                Console.WriteLine($"compilation item = {filePath}");
                 roslynProject = roslynProject.AddDocument(filePath, File.ReadAllText(absFilePath)).Project;
             }
             foreach (var asm in assemblies)
             {
+                Console.WriteLine($"reference item = {asm.Text}");
                 roslynProject = roslynProject.AddMetadataReference(MetadataReference.CreateFromFile(asm.Text));
             }
             var compopt = roslynProject.CompilationOptions as CSharpCompilationOptions;
@@ -266,10 +267,6 @@ namespace MessagePack.CodeGenerator
 
             workspace.WorkspaceFailed += WorkSpaceFailed;
             var project = workspace.CurrentSolution.Projects.First();
-            foreach (var doc in project.Documents)
-            {
-                Console.WriteLine($"doc2 = {doc.Name}");
-            }
             project = project
                 .WithParseOptions((project.ParseOptions as CSharpParseOptions).WithPreprocessorSymbols(preprocessorSymbols))
                 .WithCompilationOptions((project.CompilationOptions as CSharpCompilationOptions).WithAllowUnsafe(true));
