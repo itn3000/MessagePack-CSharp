@@ -211,7 +211,7 @@ namespace MessagePack.CodeGenerator
             var ws = new AdhocWorkspace();
             var roslynProject = ws.AddProject(Path.GetFileNameWithoutExtension(csproj.ProjectFile), Microsoft.CodeAnalysis.LanguageNames.CSharp);
             var projectDir = properties["ProjectDir"].Value;
-            var pguid = properties.ContainsKey("ProjectGuid") ? Guid.Parse("ProjectGuid") : Guid.NewGuid();
+            var pguid = properties.ContainsKey("ProjectGuid") ? Guid.Parse(properties["ProjectGuid"].Value) : Guid.NewGuid();
             var projectGuid = ProjectId.CreateFromSerialized(pguid);
             Console.WriteLine($"projectDir = {projectDir}");
             foreach (var compile in compileItems)
