@@ -1,6 +1,4 @@
 trigger:
-  branches:
-    include: ["master", "v1.8"]
   paths:
     exclude: ["doc", "*.md"]
 
@@ -11,7 +9,31 @@ variables:
   BuildPlatform: Any CPU
 
 jobs:
-- job: Windows
-  pool: Hosted VS2017
+- job: macOS
+  pool: macos-10.13
   steps:
-  - template: azure-pipelines/build.yml
+    - task: DotNetCoreCLI@2
+      displayName: Restore
+      inputs:
+        command: restore
+        verbosityRestore: normal
+        projects: "**/*.sln"
+        feedToUse: config
+        nugetConfigPath: nuget.config
+    - task: VSBuild@1
+      inputs:
+        vsVersion: 15.0
+        solution: MessagePack.sln
+        msbuildArgs: /t:build,pack /m /v:m /bl:"$(Build.ArtifactStagingDirectory)/build_logs/msbuild.binlog"
+        platform: $(BuildPlatform)
+        configuration: $(BuildConfiguration)
+      displayName: Build MessagePack.sln
+    - task: DotNetCoreCLI@2
+      displayName: run test subdir
+      inputs:
+        command: run
+        verbosityRestore: normal
+        projects: "src/MessagePack.UniversalCodeGenerator/MessagePack.UniversalCodeGenerator.csproj"
+        feedToUse: config
+        nugetConfigPath: nuget.config
+        arguments: "-- -i sandbox/TestData.SubDir/TestData.SubDir.csproj -o Generated.cs"
