@@ -29,6 +29,14 @@ jobs:
         nugetConfigPath: nuget.config
       displayName: Build MessagePack.sln
     - task: DotNetCoreCLI@2
+      displayName: prepare test project
+      inputs:
+        command: restore
+        verbosityRestore: normal
+        feedToUse: config
+        nugetConfigPath: nuget.config
+        projects: "sandbox/TestData.SubDir/TestData.SubDir.csproj"
+    - task: DotNetCoreCLI@2
       displayName: run test subdir
       inputs:
         command: run
