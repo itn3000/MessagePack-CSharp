@@ -33,7 +33,6 @@ jobs:
       inputs:
         command: run
         verbosityRestore: normal
-        projects: "src/MessagePack.UniversalCodeGenerator/MessagePack.UniversalCodeGenerator.csproj"
         feedToUse: config
         nugetConfigPath: nuget.config
-        arguments: "-- -i sandbox/TestData.SubDir/TestData.SubDir.csproj -o Generated.cs"
+        arguments: "--project src/MessagePack.UniversalCodeGenerator/MessagePack.UniversalCodeGenerator.csproj -- -i sandbox/TestData.SubDir/TestData.SubDir.csproj -o Generated.cs"
