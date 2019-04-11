@@ -10,7 +10,7 @@ variables:
 
 jobs:
 - job: macOS
-  pool: macos-10.13
+  pool: Hosted macOS
   steps:
     - task: DotNetCoreCLI@2
       displayName: Restore
